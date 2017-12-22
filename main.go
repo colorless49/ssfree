@@ -47,8 +47,13 @@ func main() {
 
 	cms := ClientMultiServer{}
 	cms.LocalPort = 1080
-	ssa := readFromWeb()
-	//ssa := readFromFile("data.txt")
+	ssa, err := readFromWeb()
+	if err != nil {
+		fmt.Println("read from web error:", err)
+		fmt.Println("Then read from data.txt ...")
+		ssa = readFromFile("data.txt")
+	}
+
 	sort.Slice(ssa, func(i, j int) bool { return ssa[i].PingTime < ssa[j].PingTime })
 	for i, v := range ssa {
 		if i == 10 {
@@ -62,21 +67,21 @@ func main() {
 	fmt.Println("Then end.")
 }
 
-func readFromWeb() []SSAccount {
+func readFromWeb() ([]SSAccount, error) {
 	now := (time.Now().UnixNano()) / 1000000
 	url := "https://free-ss.site/ss.php?_=" + strconv.FormatInt(now, 10)
 	fmt.Println(url)
 
 	resp, err := http.Get(url)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	ssAounts := make(map[string][][]interface{})
 	e2 := json.Unmarshal(body, &ssAounts)
 	if e2 != nil {
-		panic(e2)
+		return nil, e2
 	}
 	ss := make([]SSAccount, 0, 70)
 	for _, v := range ssAounts["data"] {
@@ -99,7 +104,7 @@ func readFromWeb() []SSAccount {
 			ss = append(ss, accout)
 		}
 	}
-	return ss
+	return ss, nil
 }
 
 //解析从网站上copy出来的数据文件，如data.txt。在有验证码的情况下使用
