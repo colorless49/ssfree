@@ -7,19 +7,16 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/colorless49/ping"
 )
 
 //SSAccount is one account
 type SSAccount struct {
-	Health   int
+	Health   string
 	IP       string
 	Port     string
 	Password string
@@ -37,25 +34,35 @@ type SSAccount struct {
 		["127.0.0.1:8388", "barfoo", "aes-128-cfb"]
 	]
 }
-*/
-type ClientMultiServer struct {
+**/
+type clientMultiServer struct {
 	LocalPort      int         `json:"local_port"`
 	ServerPassword [][3]string `json:"server_password"`
 }
 
 func main() {
 
-	cms := ClientMultiServer{}
+	cms := clientMultiServer{}
+	var brookCmd string
 	cms.LocalPort = 1080
+	/* 去掉直接从网站抓取
 	ssa, err := readFromWeb()
 	if err != nil {
 		fmt.Println("read from web error:", err)
 		fmt.Println("Then read from data.txt ...")
 		ssa = readFromFile("data.txt")
-	}
+	}*/
+
+	//根据data.txt文件内容读取
+	ssa := readFromFile("data.txt")
 
 	sort.Slice(ssa, func(i, j int) bool { return ssa[i].PingTime < ssa[j].PingTime })
 	for i, v := range ssa {
+		if brookCmd == "" && v.Method == "aes-256-cfb" {
+			fmt.Print("brook CMD ----")
+			fmt.Println(v)
+			brookCmd = "brook ssclient -l 127.0.0.1:1080 -i 127.0.0.1 -s " + v.IP + ":" + v.Port + " -p " + v.Password + " --http"
+		}
 		if i == 10 {
 			break
 		}
@@ -63,48 +70,14 @@ func main() {
 		cms.ServerPassword = append(cms.ServerPassword, [3]string{v.IP + ":" + v.Port, v.Password, v.Method})
 	}
 	jsonstr, _ := json.Marshal(cms)
-	ioutil.WriteFile("client-multi-server.json", jsonstr, 0644)
+	if ioutil.WriteFile("client-multi-server.json", jsonstr, 0644) != nil {
+		fmt.Println("写入client-multi-server.json失败!")
+	}
+	if ioutil.WriteFile("brook.bat", []byte(brookCmd), 0644) != nil {
+		fmt.Println("写入brook.bat失败!")
+	}
+
 	fmt.Println("Then end.")
-}
-
-func readFromWeb() ([]SSAccount, error) {
-	now := (time.Now().UnixNano()) / 1000000
-	url := "https://free-ss.site/ss.php?_=" + strconv.FormatInt(now, 10)
-	fmt.Println(url)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	ssAounts := make(map[string][][]interface{})
-	e2 := json.Unmarshal(body, &ssAounts)
-	if e2 != nil {
-		return nil, e2
-	}
-	ss := make([]SSAccount, 0, 70)
-	for _, v := range ssAounts["data"] {
-		idx := v[0].(float64)
-		accout := SSAccount{}
-		accout.Health = int(idx)
-		accout.IP = v[1].(string)
-		accout.Port = v[2].(string)
-		accout.Password = v[3].(string)
-		accout.Method = v[4].(string)
-		accout.Verified = v[5].(string)
-		accout.Geo = v[6].(string)
-		if accout.Health == 100 && supportEncryption(accout.Method) {
-			t, err := testTime(accout.IP)
-			if err != nil {
-				continue
-			}
-			fmt.Println("Ping ", accout.IP, " duration ", t, " ms")
-			accout.PingTime = t
-			ss = append(ss, accout)
-		}
-	}
-	return ss, nil
 }
 
 //解析从网站上copy出来的数据文件，如data.txt。在有验证码的情况下使用
@@ -129,7 +102,7 @@ func readFromFile(path string) []SSAccount {
 		if err != nil {
 			continue
 		}
-		if s.Health == 100 && supportEncryption(s.Method) {
+		if supportEncryption(s.Method) {
 			t, err := testTime(s.IP)
 			if err != nil {
 				continue
@@ -148,7 +121,7 @@ func line2SSaccount(line string) (SSAccount, error) {
 	s := strings.TrimSpace(line)
 	el := strings.Split(s, "\t")
 	if len(el) == 7 {
-		ssa.Health, _ = strconv.Atoi(el[0])
+		ssa.Health = el[0] //strconv.Atoi(el[0])
 		ssa.IP = el[1]
 		ssa.Port = el[2]
 		ssa.Password = el[3]
