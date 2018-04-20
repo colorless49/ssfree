@@ -71,10 +71,10 @@ func main() {
 	}
 	jsonstr, _ := json.Marshal(cms)
 	if ioutil.WriteFile("client-multi-server.json", jsonstr, 0644) != nil {
-		fmt.Println("写入client-multi-server.json失败!")
+		fmt.Println("写入client-multi-server.json失败。")
 	}
 	if ioutil.WriteFile("brook.bat", []byte(brookCmd), 0644) != nil {
-		fmt.Println("写入brook.bat失败!")
+		fmt.Println("写入brook.bat失败。")
 	}
 
 	fmt.Println("Then end.")
